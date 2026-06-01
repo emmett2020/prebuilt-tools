@@ -86,11 +86,24 @@ builder/
 
 ```bash
 python -m builder list
-python -m builder check  --recipe tree-sitter --channel release --arch amd64
-python -m builder build  --recipe tree-sitter --channel nightly --arch amd64 \
+python -m builder check  --recipe tree-sitter --channel release --os ubuntu-22.04 --arch amd64
+python -m builder build  --recipe tree-sitter --channel nightly --os ubuntu-22.04 --arch amd64 \
                          --workdir work --out dist --results-dir results
 python -m builder report --results-dir results
 ```
+
+`--os` is required (so artifacts are never mislabeled); `--arch` auto-detects
+from the host if omitted.
+
+### Tests
+
+Dependency-free stdlib `unittest` (no network, no LLVM build needed):
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+They run in CI via `.github/workflows/test.yml` on every push/PR.
 
 ## Adding a new tool
 
