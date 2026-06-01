@@ -1,0 +1,175 @@
+name: Build Prebuilt Artifacts
+
+# Daily builds, staggered by channel to spread load (this does NOT extend the
+# 6h per-job limit — ccache cross-run persistence is what lets large builds
+# resume across runs).
+on:
+  schedule:
+    - cron: '0 1 * * *'    # 01:00 UTC -> release channel
+    - cron: '0 13 * * *'   # 13:00 UTC -> nightly channel
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: channel to build
+        type: choice
+        options: [release, nightly]
+        default: release
+
+permissions:
+  contents: write
+
+# glibc baseline = ubuntu-22.04 (glibc 2.35) on BOTH arches for a consistent,
+# low minimum-version requirement in the produced binaries.
+jobs:
+  setup:
+    runs-on: ubuntu-22.04
+    outputs:
+      channel: ${{ steps.ctx.outputs.channel }}
+      dry_run: ${{ steps.ctx.outputs.dry_run }}
+    steps:
+      - id: ctx
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "channel=release" >> "$GITHUB_OUTPUT"
+            echo "dry_run=true"   >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "channel=${{ inputs.channel }}" >> "$GITHUB_OUTPUT"
+            echo "dry_run=false" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.event.schedule }}" == "0 13 * * *" ]]; then
+            echo "channel=nightly" >> "$GITHUB_OUTPUT"
+            echo "dry_run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "channel=release" >> "$GITHUB_OUTPUT"
+            echo "dry_run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: setup
+    strategy:
+      fail-fast: false        # one tool/arch failing must not cancel the rest
+      matrix:
+        include:
+          - { tool: tree-sitter, arch: amd64, runner: ubuntu-22.04 }
+          - { tool: tree-sitter, arch: arm64, runner: ubuntu-22.04-arm }
+          - { tool: llvm,        arch: amd64, runner: ubuntu-22.04 }
+          - { tool: llvm,        arch: arm64, runner: ubuntu-22.04-arm }
+    runs-on: ${{ matrix.runner }}
+    env:
+      CHANNEL: ${{ needs.setup.outputs.channel }}
+      DRY_RUN: ${{ needs.setup.outputs.dry_run }}
+      # On PRs, skip the multi-hour llvm build; only validate the fast pipeline.
+      SKIP: ${{ needs.setup.outputs.dry_run == 'true' && matrix.tool == 'llvm' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0       # need tags for release idempotency check
+
+      # Use the runner's system python3 (the builder is stdlib-only). We avoid
+      # actions/setup-python because its arm64 prebuild requires GLIBC_2.38,
+      # which would not load on our glibc-2.35 (ubuntu-22.04) baseline.
+      - name: Install build dependencies
+        if: ${{ env.SKIP != 'true' }}
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build ccache git python3
+
+      - name: Resolve version & idempotency
+        id: check
+        if: ${{ env.SKIP != 'true' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 -m builder check --recipe ${{ matrix.tool }} \
+            --channel "$CHANNEL" --arch ${{ matrix.arch }}
+
+      - name: Restore ccache
+        if: ${{ env.SKIP != 'true' && steps.check.outputs.needs_build == 'true' }}
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          # Bound to tool+arch+channel+version so a new version starts fresh but
+          # repeated/resumed runs of the same version reuse objects.
+          key: ccache-${{ matrix.tool }}-${{ matrix.arch }}-${{ env.CHANNEL }}-${{ steps.check.outputs.version }}
+          restore-keys: |
+            ccache-${{ matrix.tool }}-${{ matrix.arch }}-${{ env.CHANNEL }}-
+
+      - name: Build, package & smoke-test
+        if: ${{ env.SKIP != 'true' && steps.check.outputs.needs_build == 'true' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 -m builder build --recipe ${{ matrix.tool }} \
+            --channel "$CHANNEL" --arch ${{ matrix.arch }} \
+            --version "${{ steps.check.outputs.version }}" \
+            --workdir work --out dist --ccache-dir .ccache --results-dir results
+
+      - name: Record skipped result
+        if: ${{ env.SKIP != 'true' && steps.check.outputs.needs_build == 'false' }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from builder.core import report
+          report.write_result(Path("results"), report.Result(
+              tool="${{ matrix.tool }}", channel="${{ env.CHANNEL }}",
+              arch="${{ matrix.arch }}", status="skipped",
+              version="${{ steps.check.outputs.version }}",
+              note="tag already published"))
+          PY
+
+      - name: Upload result JSON
+        if: ${{ always() && env.SKIP != 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: result-${{ matrix.tool }}-${{ matrix.arch }}
+          path: results/
+          if-no-files-found: ignore
+
+      - name: Publish to GitHub Release
+        if: >-
+          ${{ env.SKIP != 'true' && env.DRY_RUN != 'true'
+              && steps.check.outputs.needs_build == 'true' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.check.outputs.tag }}
+          # Nightly: same tag every day -> rolling overwrite (only reached after
+          # a successful build + smoke test, so a failure never clobbers the
+          # previous good artifact).
+          files: |
+            dist/*.tar.gz
+            dist/*.sha256
+            dist/MANIFEST.json
+
+  report:
+    needs: build
+    if: ${{ always() && github.event_name != 'pull_request' }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: all-results
+          pattern: result-*
+          merge-multiple: true
+      - name: Render summary & email body
+        id: render
+        run: |
+          python3 -m builder report --results-dir all-results \
+            --email-subject-file subject.txt --email-body-file body.txt || true
+          echo "subject=$(cat subject.txt)" >> "$GITHUB_OUTPUT"
+      - name: Send notification email
+        if: ${{ vars.NOTIFY_EMAIL != '' }}
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: ${{ steps.render.outputs.subject }}
+          to: ${{ vars.NOTIFY_EMAIL }}
+          from: Prebuilt Builder <${{ secrets.SMTP_USERNAME }}>
+          body: file://body.txt

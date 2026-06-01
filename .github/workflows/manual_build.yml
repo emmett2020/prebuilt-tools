@@ -1,0 +1,80 @@
+name: Manual Build
+
+# Build a single tool/arch on demand — used to validate a recipe change before
+# merging (optionally publishing the result).
+on:
+  workflow_dispatch:
+    inputs:
+      tool:
+        description: recipe name (e.g. llvm, tree-sitter)
+        required: true
+        type: string
+      channel:
+        description: channel
+        type: choice
+        options: [release, nightly]
+        default: release
+      arch:
+        description: architecture
+        type: choice
+        options: [amd64, arm64]
+        default: amd64
+      version:
+        description: override version (blank = resolve latest)
+        type: string
+        default: ''
+      publish:
+        description: publish to GitHub Release
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ${{ inputs.arch == 'arm64' && 'ubuntu-22.04-arm' || 'ubuntu-22.04' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # System python3 only (stdlib-only builder); see build.yml for why we
+      # avoid actions/setup-python on the glibc-2.35 baseline.
+      - name: Install build dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build ccache git python3
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-${{ inputs.tool }}-${{ inputs.arch }}-${{ inputs.channel }}-manual
+          restore-keys: |
+            ccache-${{ inputs.tool }}-${{ inputs.arch }}-${{ inputs.channel }}-
+      - name: Build, package & smoke-test
+        id: build
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 -m builder build --recipe "${{ inputs.tool }}" \
+            --channel "${{ inputs.channel }}" --arch "${{ inputs.arch }}" \
+            ${{ inputs.version != '' && format('--version {0}', inputs.version) || '' }} \
+            --workdir work --out dist --ccache-dir .ccache
+      - name: Upload artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.tool }}-${{ inputs.arch }}-${{ inputs.channel }}
+          path: dist/
+          if-no-files-found: ignore
+      - name: Publish to GitHub Release
+        if: ${{ inputs.publish }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.build.outputs.tag }}
+          files: |
+            dist/*.tar.gz
+            dist/*.sha256
+            dist/MANIFEST.json
