@@ -13,9 +13,10 @@ Asset names and Release tags follow a fixed convention, so downstream consumers
 can construct URLs by string formatting — **no GitHub API calls needed**:
 
 ```
-<tool>[-<kind>]-<version>-linux-<arch>.tar.gz
+<tool>[-<kind>]-<version>-<os>-<arch>.tar.gz
 ```
 
+- `os` ∈ `ubuntu-22.04` (glibc 2.35), `ubuntu-24.04` (glibc 2.39)
 - `arch` ∈ `amd64`, `arm64`
 - **release** channel: `version` is the upstream version, tag is permanent
 - **nightly** channel: `version` is the literal `nightly`, the tag rolls
@@ -25,28 +26,35 @@ can construct URLs by string formatting — **no GitHub API calls needed**:
 ```bash
 OWNER=emmett2020/llvm-prebuilt-binary
 
-# Latest stable clangd for x86_64
+# Latest stable clangd for x86_64, built on the broad-compat ubuntu-22.04 baseline
 VER=19.1.0
+A=llvm-clangd-$VER-ubuntu-22.04-amd64
 curl -fsSL -o clangd.tar.gz \
-  "https://github.com/$OWNER/releases/download/llvm-clangd-$VER-linux-amd64/llvm-clangd-$VER-linux-amd64.tar.gz"
+  "https://github.com/$OWNER/releases/download/$A/$A.tar.gz"
 
 # Verify checksum (each asset ships a .sha256 sidecar)
 curl -fsSL -o clangd.tar.gz.sha256 \
-  "https://github.com/$OWNER/releases/download/llvm-clangd-$VER-linux-amd64/llvm-clangd-$VER-linux-amd64.tar.gz.sha256"
+  "https://github.com/$OWNER/releases/download/$A/$A.tar.gz.sha256"
 sha256sum -c clangd.tar.gz.sha256
 
-# Rolling nightly tree-sitter (URL never changes)
-curl -fsSL \
-  "https://github.com/$OWNER/releases/download/tree-sitter-nightly-linux-amd64/tree-sitter-nightly-linux-amd64.tar.gz" \
-  | tar xz
+# Rolling nightly tree-sitter on arm64 (URL never changes)
+N=tree-sitter-nightly-ubuntu-22.04-arm64
+curl -fsSL "https://github.com/$OWNER/releases/download/$N/$N.tar.gz" | tar xz
 ```
 
 Each Release also includes a `MANIFEST.json` recording the source ref, compiler,
 build flags, per-artifact sha256, and build duration for provenance.
 
-**Compatibility:** binaries are built on `ubuntu-22.04` (glibc 2.35) for both
-amd64 and arm64 — that is the minimum supported runtime. C++ tools link
-libstdc++ statically to further reduce runtime dependencies.
+**Compatibility — pick the `os` to match your runtime's glibc:**
+
+| Build OS | glibc | Runs on (examples) |
+|----------|-------|--------------------|
+| `ubuntu-22.04` | ≥ 2.35 | Ubuntu 22.04+, Debian 12+ — **most portable, prefer this** |
+| `ubuntu-24.04` | ≥ 2.39 | Ubuntu 24.04+ only — use if you need 24.04's newer toolchain |
+
+Binaries built on a given OS require that OS's glibc **or newer**. C++ tools
+also link libstdc++ statically to reduce runtime dependencies. Built for Linux
+`amd64` / `arm64` only (no macOS/Windows yet).
 
 ### Available tools / artifact kinds
 

@@ -18,6 +18,7 @@ class Result:
     channel: str
     arch: str
     status: str                     # "built" | "skipped" | "failed"
+    os: str = "linux"
     version: str = ""
     duration_seconds: float = 0.0
     size_bytes: int = 0
@@ -26,7 +27,7 @@ class Result:
 
 def write_result(out_dir: Path, result: Result) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
-    name = f"{result.tool}-{result.channel}-{result.arch}.json"
+    name = f"{result.tool}-{result.channel}-{result.os}-{result.arch}.json"
     path = out_dir / name
     path.write_text(json.dumps(asdict(result), indent=2) + "\n")
     return path
@@ -58,14 +59,14 @@ def render_markdown(results: List[Result]) -> str:
     lines = [
         "# Build Report",
         "",
-        "| Tool | Channel | Arch | Status | Version | Time | Size | Note |",
-        "|------|---------|------|--------|---------|------|------|------|",
+        "| Tool | Channel | OS | Arch | Status | Version | Time | Size | Note |",
+        "|------|---------|----|------|--------|---------|------|------|------|",
     ]
     for r in results:
         dur = f"{r.duration_seconds/60:.0f}m" if r.duration_seconds else "-"
         size = _human_size(r.size_bytes) if r.size_bytes else "-"
         lines.append(
-            f"| {r.tool} | {r.channel} | {r.arch} | {_ICON.get(r.status, r.status)} "
+            f"| {r.tool} | {r.channel} | {r.os} | {r.arch} | {_ICON.get(r.status, r.status)} "
             f"{r.status} | {r.version or '-'} | {dur} | {size} | {r.note or ''} |"
         )
     return "\n".join(lines) + "\n"
@@ -75,7 +76,7 @@ def render_text(results: List[Result]) -> str:
     lines = ["Build Report", "=" * 40]
     for r in results:
         lines.append(
-            f"[{r.status.upper():7}] {r.tool}/{r.channel}/{r.arch} "
+            f"[{r.status.upper():7}] {r.tool}/{r.channel}/{r.os}/{r.arch} "
             f"{r.version}".rstrip()
             + (f" — {r.note}" if r.note else "")
         )

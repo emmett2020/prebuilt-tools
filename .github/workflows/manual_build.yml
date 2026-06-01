@@ -14,6 +14,11 @@ on:
         type: choice
         options: [release, nightly]
         default: release
+      os:
+        description: build OS (glibc baseline)
+        type: choice
+        options: [ubuntu-22.04, ubuntu-24.04]
+        default: ubuntu-22.04
       arch:
         description: architecture
         type: choice
@@ -33,7 +38,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: ${{ inputs.arch == 'arm64' && 'ubuntu-22.04-arm' || 'ubuntu-22.04' }}
+    runs-on: ${{ format('{0}{1}', inputs.os, inputs.arch == 'arm64' && '-arm' || '') }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,23 +55,23 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .ccache
-          key: ccache-${{ inputs.tool }}-${{ inputs.arch }}-${{ inputs.channel }}-manual
+          key: ccache-${{ inputs.tool }}-${{ inputs.os }}-${{ inputs.arch }}-${{ inputs.channel }}-manual
           restore-keys: |
-            ccache-${{ inputs.tool }}-${{ inputs.arch }}-${{ inputs.channel }}-
+            ccache-${{ inputs.tool }}-${{ inputs.os }}-${{ inputs.arch }}-${{ inputs.channel }}-
       - name: Build, package & smoke-test
         id: build
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python3 -m builder build --recipe "${{ inputs.tool }}" \
-            --channel "${{ inputs.channel }}" --arch "${{ inputs.arch }}" \
+            --channel "${{ inputs.channel }}" --os "${{ inputs.os }}" --arch "${{ inputs.arch }}" \
             ${{ inputs.version != '' && format('--version {0}', inputs.version) || '' }} \
             --workdir work --out dist --ccache-dir .ccache
       - name: Upload artifacts
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ inputs.tool }}-${{ inputs.arch }}-${{ inputs.channel }}
+          name: ${{ inputs.tool }}-${{ inputs.os }}-${{ inputs.arch }}-${{ inputs.channel }}
           path: dist/
           if-no-files-found: ignore
       - name: Publish to GitHub Release

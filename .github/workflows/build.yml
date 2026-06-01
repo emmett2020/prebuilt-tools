@@ -20,8 +20,9 @@ on:
 permissions:
   contents: write
 
-# glibc baseline = ubuntu-22.04 (glibc 2.35) on BOTH arches for a consistent,
-# low minimum-version requirement in the produced binaries.
+# Built on both ubuntu-22.04 (glibc 2.35, broadest compatibility) and
+# ubuntu-24.04 (glibc 2.39), for amd64 and arm64. The os label is part of the
+# asset name so downstreams pick the artifact matching their runtime glibc.
 jobs:
   setup:
     runs-on: ubuntu-22.04
@@ -51,11 +52,18 @@ jobs:
     strategy:
       fail-fast: false        # one tool/arch failing must not cancel the rest
       matrix:
+        # tool × os × arch. The os label is embedded in asset names/tags so
+        # builds on different glibc baselines (22.04=2.35, 24.04=2.39) never
+        # collide.
         include:
-          - { tool: tree-sitter, arch: amd64, runner: ubuntu-22.04 }
-          - { tool: tree-sitter, arch: arm64, runner: ubuntu-22.04-arm }
-          - { tool: llvm,        arch: amd64, runner: ubuntu-22.04 }
-          - { tool: llvm,        arch: arm64, runner: ubuntu-22.04-arm }
+          - { tool: tree-sitter, os: ubuntu-22.04, arch: amd64, runner: ubuntu-22.04 }
+          - { tool: tree-sitter, os: ubuntu-22.04, arch: arm64, runner: ubuntu-22.04-arm }
+          - { tool: tree-sitter, os: ubuntu-24.04, arch: amd64, runner: ubuntu-24.04 }
+          - { tool: tree-sitter, os: ubuntu-24.04, arch: arm64, runner: ubuntu-24.04-arm }
+          - { tool: llvm,        os: ubuntu-22.04, arch: amd64, runner: ubuntu-22.04 }
+          - { tool: llvm,        os: ubuntu-22.04, arch: arm64, runner: ubuntu-22.04-arm }
+          - { tool: llvm,        os: ubuntu-24.04, arch: amd64, runner: ubuntu-24.04 }
+          - { tool: llvm,        os: ubuntu-24.04, arch: arm64, runner: ubuntu-24.04-arm }
     runs-on: ${{ matrix.runner }}
     env:
       CHANNEL: ${{ needs.setup.outputs.channel }}
@@ -85,18 +93,18 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python3 -m builder check --recipe ${{ matrix.tool }} \
-            --channel "$CHANNEL" --arch ${{ matrix.arch }}
+            --channel "$CHANNEL" --os ${{ matrix.os }} --arch ${{ matrix.arch }}
 
       - name: Restore ccache
         if: ${{ env.SKIP != 'true' && steps.check.outputs.needs_build == 'true' }}
         uses: actions/cache@v4
         with:
           path: .ccache
-          # Bound to tool+arch+channel+version so a new version starts fresh but
-          # repeated/resumed runs of the same version reuse objects.
-          key: ccache-${{ matrix.tool }}-${{ matrix.arch }}-${{ env.CHANNEL }}-${{ steps.check.outputs.version }}
+          # Bound to tool+os+arch+channel+version so a new version starts fresh
+          # but repeated/resumed runs of the same version reuse objects.
+          key: ccache-${{ matrix.tool }}-${{ matrix.os }}-${{ matrix.arch }}-${{ env.CHANNEL }}-${{ steps.check.outputs.version }}
           restore-keys: |
-            ccache-${{ matrix.tool }}-${{ matrix.arch }}-${{ env.CHANNEL }}-
+            ccache-${{ matrix.tool }}-${{ matrix.os }}-${{ matrix.arch }}-${{ env.CHANNEL }}-
 
       - name: Build, package & smoke-test
         if: ${{ env.SKIP != 'true' && steps.check.outputs.needs_build == 'true' }}
@@ -104,7 +112,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python3 -m builder build --recipe ${{ matrix.tool }} \
-            --channel "$CHANNEL" --arch ${{ matrix.arch }} \
+            --channel "$CHANNEL" --os ${{ matrix.os }} --arch ${{ matrix.arch }} \
             --version "${{ steps.check.outputs.version }}" \
             --workdir work --out dist --ccache-dir .ccache --results-dir results
 
@@ -116,7 +124,7 @@ jobs:
           from builder.core import report
           report.write_result(Path("results"), report.Result(
               tool="${{ matrix.tool }}", channel="${{ env.CHANNEL }}",
-              arch="${{ matrix.arch }}", status="skipped",
+              os="${{ matrix.os }}", arch="${{ matrix.arch }}", status="skipped",
               version="${{ steps.check.outputs.version }}",
               note="tag already published"))
           PY
@@ -125,7 +133,7 @@ jobs:
         if: ${{ always() && env.SKIP != 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: result-${{ matrix.tool }}-${{ matrix.arch }}
+          name: result-${{ matrix.tool }}-${{ matrix.os }}-${{ matrix.arch }}
           path: results/
           if-no-files-found: ignore
 

@@ -85,6 +85,7 @@ def write_manifest(
     build_flags: str,
     artifacts: List[dict],
     duration_seconds: float,
+    os_tag: str = "linux",
 ) -> Path:
     """Write a MANIFEST.json describing the build for provenance/reproducibility."""
     manifest = {
@@ -92,7 +93,7 @@ def write_manifest(
         "version": version,
         "channel": channel,
         "arch": arch,
-        "os": "linux",
+        "os": os_tag,
         "source_ref": source_ref,
         "build_flags": build_flags,
         "compiler": cc_version(),

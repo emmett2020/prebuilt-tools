@@ -34,6 +34,7 @@ class BuildContext:
     arch: str               # "amd64" or "arm64"
     workdir: Path           # scratch directory the recipe may use freely
     ccache_dir: Path        # persistent ccache directory (may be empty on first run)
+    os_tag: str = "linux"   # build platform label, e.g. "ubuntu-22.04" (distinguishes glibc baselines)
 
 
 @dataclass
@@ -74,14 +75,16 @@ class Recipe(abc.ABC):
     # -- helpers shared by subclasses ------------------------------------
 
     def asset_basename(self, ctx: BuildContext, kind: str) -> str:
-        """Canonical, API-free asset name: ``<tool>[-<kind>]-<version>-linux-<arch>``.
+        """Canonical, API-free asset name: ``<tool>[-<kind>]-<version>-<os>-<arch>``.
 
-        For nightly the version component is the literal string ``nightly`` so
-        the rolling tag/URL never changes.
+        ``<os>`` is the build platform (e.g. ``ubuntu-22.04``) so artifacts built
+        on different glibc baselines never collide. For nightly the version
+        component is the literal string ``nightly`` so the rolling tag/URL never
+        changes.
         """
         version = "nightly" if ctx.channel == NIGHTLY else ctx.version
         tool = self.name if not kind or kind == self.name else f"{self.name}-{kind}"
-        return f"{tool}-{version}-linux-{ctx.arch}"
+        return f"{tool}-{version}-{ctx.os_tag}-{ctx.arch}"
 
 
 # --------------------------------------------------------------------------

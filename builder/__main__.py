@@ -44,14 +44,14 @@ def _detect_arch() -> str:
     raise SystemExit(f"unsupported architecture: {machine}")
 
 
-def _release_tag(r: recipe.Recipe, version: str, channel: str, arch: str) -> str:
+def _release_tag(r: recipe.Recipe, version: str, channel: str, arch: str, os_tag: str) -> str:
     """The git tag / GitHub Release tag for this artifact set.
 
-    Release: ``<tool>-<version>-linux-<arch>`` (permanent).
-    Nightly: ``<tool>-nightly-linux-<arch>`` (rolling, overwritten on success).
+    Release: ``<tool>-<version>-<os>-<arch>`` (permanent).
+    Nightly: ``<tool>-nightly-<os>-<arch>`` (rolling, overwritten on success).
     """
     v = "nightly" if channel == NIGHTLY else version
-    return f"{r.name}-{v}-linux-{arch}"
+    return f"{r.name}-{v}-{os_tag}-{arch}"
 
 
 def cmd_list(_: argparse.Namespace) -> int:
@@ -63,7 +63,7 @@ def cmd_list(_: argparse.Namespace) -> int:
 def cmd_check(args: argparse.Namespace) -> int:
     r = recipe.get(args.recipe)
     version = r.latest_version(args.channel)
-    tag = _release_tag(r, version, args.channel, args.arch)
+    tag = _release_tag(r, version, args.channel, args.arch, args.os)
 
     from builder.core import versions
     if args.channel == NIGHTLY:
@@ -93,13 +93,13 @@ def cmd_build(args: argparse.Namespace) -> int:
 
     ctx = recipe.BuildContext(
         version=version, channel=args.channel, arch=arch,
-        workdir=workdir, ccache_dir=ccache_dir,
+        workdir=workdir, ccache_dir=ccache_dir, os_tag=args.os,
     )
 
     def record(status: str, *, size: int = 0, duration: float = 0.0, note: str = "") -> None:
         if results_dir:
             report.write_result(results_dir, report.Result(
-                tool=r.name, channel=args.channel, arch=arch, status=status,
+                tool=r.name, channel=args.channel, arch=arch, os=args.os, status=status,
                 version=version, duration_seconds=duration, size_bytes=size, note=note,
             ))
 
@@ -130,7 +130,7 @@ def cmd_build(args: argparse.Namespace) -> int:
 
         pack.write_manifest(
             out_dir / "MANIFEST.json",
-            tool=r.name, version=version, channel=args.channel, arch=arch,
+            tool=r.name, version=version, channel=args.channel, arch=arch, os_tag=args.os,
             source_ref=version, build_flags=getattr(r, "build_flags", ""),
             artifacts=art_meta, duration_seconds=time.time() - start,
         )
@@ -145,7 +145,7 @@ def cmd_build(args: argparse.Namespace) -> int:
 
     duration = time.time() - start
     record("built", size=total, duration=duration)
-    tag = _release_tag(r, version, args.channel, arch)
+    tag = _release_tag(r, version, args.channel, arch, args.os)
     _gh_output(version=version, tag=tag, out_dir=str(out_dir))
     print(f"OK: {len(artifacts)} artifact(s), {total} bytes, tag={tag}, {duration:.0f}s")
     return 0
@@ -179,6 +179,8 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("--recipe", required=True, choices=None,
                         help="recipe name (see `list`)")
         sp.add_argument("--channel", default=RELEASE, choices=recipe.CHANNELS)
+        sp.add_argument("--os", default="linux",
+                        help="build platform label for asset names/tags, e.g. ubuntu-22.04")
         if need_arch:
             sp.add_argument("--arch", default=None, choices=list(recipe.ARCHES),
                             help="target arch; auto-detected from uname if omitted")
