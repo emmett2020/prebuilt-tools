@@ -112,15 +112,16 @@ Create `builder/recipes/<tool>.py` implementing `Recipe`
 `register(<Recipe>())` at module import. Add a matrix entry in
 `.github/workflows/build.yml`. Validate with `manual_build.yml` before merging.
 
-## Repository configuration
+## Notifications
 
-Daily email notifications are sent only if these are set:
+**No secrets to configure.** The daily build maintains a single tracking issue
+titled `[prebuilt] latest build status` (label `daily-build`) using the built-in
+`GITHUB_TOKEN`:
 
-| Kind | Name | Purpose |
-|------|------|---------|
-| Variable | `NOTIFY_EMAIL` | recipient address (configurable; not hard-coded) |
-| Secret | `SMTP_HOST` / `SMTP_PORT` | SMTP server |
-| Secret | `SMTP_USERNAME` / `SMTP_PASSWORD` | SMTP credentials |
+- the issue **body** is refreshed every run with the latest status table;
+- a **comment** is added (which is what emails watchers) only when something
+  actually built or failed — days where every job is skipped stay silent.
 
-If `NOTIFY_EMAIL` is unset, the build report is still written to the Actions
-job summary, and GitHub's native scheduled-failure email serves as a fallback.
+To receive emails, just **watch the repository** (Watch → All Activity, or Custom
+→ Issues). GitHub's native scheduled-failure email is an additional fallback, and
+the full status table is always in the Actions job summary.

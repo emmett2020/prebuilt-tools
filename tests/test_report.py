@@ -28,17 +28,30 @@ class ReportTest(unittest.TestCase):
                 os=os_tag, version="19.1.0"))
         self.assertEqual(len(report.load_results(self.dir)), 2)
 
-    def test_any_failed_and_subject(self):
+    def test_any_failed(self):
         rs = [Result("llvm", "release", "amd64", "built"),
               Result("llvm", "release", "arm64", "failed", note="boom")]
         self.assertTrue(report.any_failed(rs))
-        self.assertIn("FAILED", report.email_subject(rs))
-        self.assertIn("1 failed", report.email_subject(rs))
+        self.assertFalse(report.any_failed([Result("t", "release", "amd64", "built")]))
 
-    def test_all_ok_subject(self):
-        rs = [Result("t", "release", "amd64", "built")]
-        self.assertIn("OK", report.email_subject(rs))
-        self.assertFalse(report.any_failed(rs))
+    def test_should_notify_only_on_built_or_failed(self):
+        # something built -> notify
+        self.assertTrue(report.should_notify([Result("t", "release", "amd64", "built")]))
+        # a failure -> notify
+        self.assertTrue(report.should_notify([Result("t", "release", "amd64", "failed")]))
+        # all skipped -> stay silent
+        self.assertFalse(report.should_notify([
+            Result("t", "release", "amd64", "skipped"),
+            Result("t", "release", "arm64", "skipped"),
+        ]))
+        self.assertFalse(report.should_notify([]))
+
+    def test_issue_body_has_table_and_timestamp(self):
+        body = report.render_issue_body([Result("llvm", "nightly", "amd64", "built",
+                                                 os="ubuntu-22.04", version="x")])
+        self.assertIn("| Tool |", body)
+        self.assertIn("_Updated", body)
+        self.assertIn("UTC", body)
 
     def test_markdown_has_os_column_and_rows(self):
         rs = [Result("llvm", "nightly", "amd64", "built", os="ubuntu-22.04",

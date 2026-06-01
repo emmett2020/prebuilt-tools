@@ -72,24 +72,21 @@ def render_markdown(results: List[Result]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def render_text(results: List[Result]) -> str:
-    lines = ["Build Report", "=" * 40]
-    for r in results:
-        lines.append(
-            f"[{r.status.upper():7}] {r.tool}/{r.channel}/{r.os}/{r.arch} "
-            f"{r.version}".rstrip()
-            + (f" — {r.note}" if r.note else "")
-        )
-    n_fail = sum(1 for r in results if r.status == "failed")
-    lines += ["", f"{len(results)} jobs, {n_fail} failed."]
-    return "\n".join(lines) + "\n"
-
-
 def any_failed(results: List[Result]) -> bool:
     return any(r.status == "failed" for r in results)
 
 
-def email_subject(results: List[Result]) -> str:
-    n_fail = sum(1 for r in results if r.status == "failed")
-    state = "FAILED" if n_fail else "OK"
-    return f"[prebuilt] daily build {state} — {len(results)} jobs, {n_fail} failed"
+def should_notify(results: List[Result]) -> bool:
+    """Whether the run warrants an Issue comment (which emails watchers).
+
+    True only when something actually built or failed — a day where every job
+    was skipped (nothing new upstream) stays silent to avoid daily noise.
+    """
+    return any(r.status in ("built", "failed") for r in results)
+
+
+def render_issue_body(results: List[Result]) -> str:
+    """Markdown body for the tracking issue: the table + an updated-at stamp."""
+    from datetime import datetime, timezone
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    return f"{render_markdown(results)}\n_Updated {stamp}_\n"
