@@ -56,14 +56,16 @@ jobs:
         # builds on different glibc baselines (22.04=2.35, 24.04=2.39) never
         # collide.
         include:
-          - { tool: tree-sitter, os: ubuntu-22.04, arch: amd64, runner: ubuntu-22.04 }
-          - { tool: tree-sitter, os: ubuntu-22.04, arch: arm64, runner: ubuntu-22.04-arm }
-          - { tool: tree-sitter, os: ubuntu-24.04, arch: amd64, runner: ubuntu-24.04 }
-          - { tool: tree-sitter, os: ubuntu-24.04, arch: arm64, runner: ubuntu-24.04-arm }
-          - { tool: llvm,        os: ubuntu-22.04, arch: amd64, runner: ubuntu-22.04 }
-          - { tool: llvm,        os: ubuntu-22.04, arch: arm64, runner: ubuntu-22.04-arm }
-          - { tool: llvm,        os: ubuntu-24.04, arch: amd64, runner: ubuntu-24.04 }
-          - { tool: llvm,        os: ubuntu-24.04, arch: arm64, runner: ubuntu-24.04-arm }
+          - { tool: tree-sitter, os: ubuntu-22.04, arch: amd, runner: ubuntu-22.04 }
+          - { tool: tree-sitter, os: ubuntu-22.04, arch: arm, runner: ubuntu-22.04-arm }
+          - { tool: tree-sitter, os: ubuntu-24.04, arch: amd, runner: ubuntu-24.04 }
+          - { tool: tree-sitter, os: ubuntu-24.04, arch: arm, runner: ubuntu-24.04-arm }
+          - { tool: llvm,        os: ubuntu-22.04, arch: amd, runner: ubuntu-22.04 }
+          - { tool: llvm,        os: ubuntu-22.04, arch: arm, runner: ubuntu-22.04-arm }
+          - { tool: llvm,        os: ubuntu-24.04, arch: amd, runner: ubuntu-24.04 }
+          - { tool: llvm,        os: ubuntu-24.04, arch: arm, runner: ubuntu-24.04-arm }
+    # Clean job name, e.g. "llvm-ubuntu-22.04-amd".
+    name: ${{ matrix.tool }}-${{ matrix.os }}-${{ matrix.arch }}
     runs-on: ${{ matrix.runner }}
     env:
       CHANNEL: ${{ needs.setup.outputs.channel }}

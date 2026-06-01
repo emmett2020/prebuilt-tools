@@ -29,7 +29,7 @@ class FlowTest(unittest.TestCase):
     def _run_build(self):
         argv = [
             "build", "--recipe", "mock-tool", "--channel", "release",
-            "--os", "ubuntu-22.04", "--arch", "amd64", "--version", "1.2.3",
+            "--os", "ubuntu-22.04", "--arch", "amd", "--version", "1.2.3",
             "--workdir", str(self.tmp / "work"), "--out", str(self.out),
             "--results-dir", str(self.results),
         ]
@@ -48,7 +48,7 @@ class FlowTest(unittest.TestCase):
         self.assertEqual(rc, 0)
 
         # tarball + its checksum sidecar exist
-        tarball = self.out / "mock-tool-1.2.3-ubuntu-22.04-amd64.tar.gz"
+        tarball = self.out / "mock-tool-1.2.3-ubuntu-22.04-amd.tar.gz"
         self.assertTrue(tarball.exists())
         self.assertTrue(tarball.with_name(tarball.name + ".sha256").exists())
 
@@ -62,7 +62,7 @@ class FlowTest(unittest.TestCase):
 
         # result recorded as built, and tag emitted to $GITHUB_OUTPUT
         self.assertEqual(self._only_result().status, "built")
-        self.assertIn("tag=mock-tool-1.2.3-ubuntu-22.04-amd64",
+        self.assertIn("tag=mock-tool-1.2.3-ubuntu-22.04-amd",
                       self.gh_output.read_text())
 
     # -- failure paths (publish gate) -------------------------------------

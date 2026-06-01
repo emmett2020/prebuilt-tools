@@ -20,9 +20,9 @@ RELEASE = "release"
 NIGHTLY = "nightly"
 CHANNELS = (RELEASE, NIGHTLY)
 
-# Architectures. Keys are the canonical names used in asset filenames; the
-# value is the matching ``uname -m`` output so a runner can self-identify.
-ARCHES = {"amd64": "x86_64", "arm64": "aarch64"}
+# Architectures. Keys are the short canonical names used in asset filenames /
+# tags; the value is the matching ``uname -m`` output.
+ARCHES = {"amd": "x86_64", "arm": "aarch64"}
 
 
 @dataclass
@@ -31,7 +31,7 @@ class BuildContext:
 
     version: str            # resolved upstream version, e.g. "19.1.0" or "nightly-20260601-abcd123"
     channel: str            # RELEASE or NIGHTLY
-    arch: str               # "amd64" or "arm64"
+    arch: str               # "amd" or "arm"
     workdir: Path           # scratch directory the recipe may use freely
     ccache_dir: Path        # persistent ccache directory (may be empty on first run)
     os_tag: str = "linux"   # build platform label, e.g. "ubuntu-22.04" (distinguishes glibc baselines)

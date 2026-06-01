@@ -25,8 +25,8 @@ on:
       arch:
         description: architecture
         type: choice
-        options: [amd64, arm64]
-        default: amd64
+        options: [amd, arm]
+        default: amd
       version:
         description: build a specific version instead of latest (blank = latest upstream)
         type: string
@@ -41,7 +41,8 @@ permissions:
 
 jobs:
   build:
-    runs-on: ${{ format('{0}{1}', inputs.os, inputs.arch == 'arm64' && '-arm' || '') }}
+    name: ${{ inputs.tool }}-${{ inputs.os }}-${{ inputs.arch }}
+    runs-on: ${{ format('{0}{1}', inputs.os, inputs.arch == 'arm' && '-arm' || '') }}
     steps:
       - uses: actions/checkout@v4
         with:

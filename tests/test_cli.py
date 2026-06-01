@@ -7,8 +7,8 @@ from builder import __main__ as cli
 
 class DetectArchTest(unittest.TestCase):
     def test_maps_uname_machine_to_canonical(self):
-        for machine, expected in [("x86_64", "amd64"), ("aarch64", "arm64"),
-                                  ("AMD64", "amd64"), ("arm64", "arm64")]:
+        for machine, expected in [("x86_64", "amd"), ("aarch64", "arm"),
+                                  ("AMD64", "amd"), ("arm64", "arm")]:
             with mock.patch("platform.machine", return_value=machine):
                 self.assertEqual(cli._detect_arch(), expected)
 

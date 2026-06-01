@@ -26,7 +26,7 @@ class CheckFlowTest(unittest.TestCase):
 
     def _check(self, channel):
         argv = ["check", "--recipe", "mock-tool", "--channel", channel,
-                "--os", "ubuntu-22.04", "--arch", "amd64"]
+                "--os", "ubuntu-22.04", "--arch", "amd"]
         with mock.patch.dict(os.environ, {"GITHUB_OUTPUT": str(self.gh)}):
             rc = cli.main(argv)
         return rc, _outputs(self.gh.read_text())
@@ -37,7 +37,7 @@ class CheckFlowTest(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertEqual(out["needs_build"], "false")
         self.assertEqual(out["version"], "1.2.3")
-        self.assertEqual(out["tag"], "mock-tool-1.2.3-ubuntu-22.04-amd64")
+        self.assertEqual(out["tag"], "mock-tool-1.2.3-ubuntu-22.04-amd")
 
     def test_release_builds_when_tag_absent(self):
         with mock.patch("builder.core.versions.tag_exists", return_value=False):
@@ -49,7 +49,7 @@ class CheckFlowTest(unittest.TestCase):
         with mock.patch("builder.core.versions.tag_exists", return_value=True) as te:
             _, out = self._check("nightly")
         self.assertEqual(out["needs_build"], "true")
-        self.assertEqual(out["tag"], "mock-tool-nightly-ubuntu-22.04-amd64")
+        self.assertEqual(out["tag"], "mock-tool-nightly-ubuntu-22.04-amd")
         te.assert_not_called()
 
 

@@ -12,7 +12,7 @@ from builder.core.recipe import NIGHTLY, RELEASE, BuildContext
 from builder.recipes.llvm import LLVMRecipe
 
 
-def _ctx(version, channel, arch="amd64", os_tag="ubuntu-22.04"):
+def _ctx(version, channel, arch="amd", os_tag="ubuntu-22.04"):
     return BuildContext(version=version, channel=channel, arch=arch,
                         workdir=Path("/tmp"), ccache_dir=Path("/tmp"), os_tag=os_tag)
 
@@ -25,14 +25,14 @@ class AssetNamingTest(unittest.TestCase):
         ctx = _ctx("19.1.0", RELEASE)
         self.assertEqual(
             self.r.asset_basename(ctx, "clang-tools"),
-            "llvm-clang-tools-19.1.0-ubuntu-22.04-amd64",
+            "llvm-clang-tools-19.1.0-ubuntu-22.04-amd",
         )
 
     def test_empty_kind_omits_kind_segment(self):
         ctx = _ctx("19.1.0", RELEASE)
         self.assertEqual(
             self.r.asset_basename(ctx, ""),
-            "llvm-19.1.0-ubuntu-22.04-amd64",
+            "llvm-19.1.0-ubuntu-22.04-amd",
         )
 
     def test_kind_equal_to_tool_is_not_doubled(self):
@@ -43,10 +43,10 @@ class AssetNamingTest(unittest.TestCase):
 
     def test_nightly_uses_literal_token_not_version(self):
         # The rolling URL must never change with the daily commit stamp.
-        ctx = _ctx("nightly-20260601-deadbeef", NIGHTLY, arch="arm64")
+        ctx = _ctx("nightly-20260601-deadbeef", NIGHTLY, arch="arm")
         self.assertEqual(
             self.r.asset_basename(ctx, "compiler"),
-            "llvm-compiler-nightly-ubuntu-22.04-arm64",
+            "llvm-compiler-nightly-ubuntu-22.04-arm",
         )
 
     def test_tag_matches_basename_for_same_inputs(self):

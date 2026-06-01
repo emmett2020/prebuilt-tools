@@ -42,12 +42,20 @@ def _first_line(text: str, limit: int = 120) -> str:
     return (text.splitlines() or [""])[0][:limit]
 
 
+# Map the various spellings `uname -m` / platform.machine() may report onto our
+# short canonical arch names.
+_MACHINE_TO_ARCH = {
+    "x86_64": "amd", "amd64": "amd",
+    "aarch64": "arm", "arm64": "arm",
+}
+
+
 def _detect_arch() -> str:
     machine = platform.machine().lower()
-    for name, uname in recipe.ARCHES.items():
-        if machine == uname or machine == name:
-            return name
-    raise SystemExit(f"unsupported architecture: {machine}")
+    try:
+        return _MACHINE_TO_ARCH[machine]
+    except KeyError:
+        raise SystemExit(f"unsupported architecture: {machine}")
 
 
 def _release_tag(r: recipe.Recipe, version: str, channel: str, arch: str, os_tag: str) -> str:

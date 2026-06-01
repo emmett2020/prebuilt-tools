@@ -17,7 +17,7 @@ can construct URLs by string formatting — **no GitHub API calls needed**:
 ```
 
 - `os` ∈ `ubuntu-22.04` (glibc 2.35), `ubuntu-24.04` (glibc 2.39)
-- `arch` ∈ `amd64`, `arm64`
+- `arch` ∈ `amd`, `arm`
 - **release** channel: `version` is the upstream version, tag is permanent
 - **nightly** channel: `version` is the literal `nightly`, the tag rolls
   (overwritten only after a successful build + smoke test, so a failed build
@@ -26,19 +26,20 @@ can construct URLs by string formatting — **no GitHub API calls needed**:
 ```bash
 OWNER=emmett2020/prebuilt-tools
 
-# Latest stable clangd for x86_64, built on the broad-compat ubuntu-22.04 baseline
+# Latest stable clang tools (clangd/clang-format/...) for x86_64, on the
+# broad-compat ubuntu-22.04 baseline
 VER=19.1.0
-A=llvm-clangd-$VER-ubuntu-22.04-amd64
-curl -fsSL -o clangd.tar.gz \
+A=llvm-clang-tools-$VER-ubuntu-22.04-amd
+curl -fsSL -o clang-tools.tar.gz \
   "https://github.com/$OWNER/releases/download/$A/$A.tar.gz"
 
 # Verify checksum (each asset ships a .sha256 sidecar)
-curl -fsSL -o clangd.tar.gz.sha256 \
+curl -fsSL -o clang-tools.tar.gz.sha256 \
   "https://github.com/$OWNER/releases/download/$A/$A.tar.gz.sha256"
-sha256sum -c clangd.tar.gz.sha256
+sha256sum -c clang-tools.tar.gz.sha256
 
-# Rolling nightly tree-sitter on arm64 (URL never changes)
-N=tree-sitter-nightly-ubuntu-22.04-arm64
+# Rolling nightly tree-sitter on arm (URL never changes)
+N=tree-sitter-nightly-ubuntu-22.04-arm
 curl -fsSL "https://github.com/$OWNER/releases/download/$N/$N.tar.gz" | tar xz
 ```
 
@@ -54,7 +55,7 @@ build flags, per-artifact sha256, and build duration for provenance.
 
 Binaries built on a given OS require that OS's glibc **or newer**. C++ tools
 also link libstdc++ statically to reduce runtime dependencies. Built for Linux
-`amd64` / `arm64` only (no macOS/Windows yet).
+`amd` / `arm` only (no macOS/Windows yet).
 
 ### Available tools / artifact kinds
 
@@ -86,8 +87,8 @@ builder/
 
 ```bash
 python -m builder list
-python -m builder check  --recipe tree-sitter --channel release --os ubuntu-22.04 --arch amd64
-python -m builder build  --recipe tree-sitter --channel nightly --os ubuntu-22.04 --arch amd64 \
+python -m builder check  --recipe tree-sitter --channel release --os ubuntu-22.04 --arch amd
+python -m builder build  --recipe tree-sitter --channel nightly --os ubuntu-22.04 --arch amd \
                          --workdir work --out dist --results-dir results
 python -m builder report --results-dir results
 ```
