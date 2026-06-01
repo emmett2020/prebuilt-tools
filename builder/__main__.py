@@ -36,6 +36,11 @@ def _gh_output(**kv: str) -> None:
             f.write("\n".join(lines) + "\n")
 
 
+def _first_line(text: str, limit: int = 120) -> str:
+    """First non-empty-safe line of ``text``, truncated — for result notes."""
+    return (text.splitlines() or [""])[0][:limit]
+
+
 def _detect_arch() -> str:
     machine = platform.machine().lower()
     for name, uname in recipe.ARCHES.items():
@@ -117,15 +122,25 @@ def cmd_build(args: argparse.Namespace) -> int:
         total = 0
         art_meta = []
         for art in artifacts:
-            pack.write_sha256(art.path)
+            digest = pack.write_sha256(art.path)   # also reused below, no re-hash
             size = art.path.stat().st_size
             total += size
+            # Record the runtime (shared-library) footprint of each executable
+            # member, so the glibc baseline of the shipped binaries is auditable.
+            ldd = {}
+            for rel in art.contents:
+                member = install_prefix / rel
+                if member.is_file() and os.access(member, os.X_OK):
+                    deps = pack.ldd_deps(member)
+                    if deps:
+                        ldd[rel] = deps
             art_meta.append({
                 "name": art.path.name,
                 "kind": art.kind,
                 "size_bytes": size,
-                "sha256": pack.sha256_file(art.path),
+                "sha256": digest,
                 "contents": art.contents,
+                "ldd": ldd,
             })
 
         pack.write_manifest(
@@ -135,11 +150,11 @@ def cmd_build(args: argparse.Namespace) -> int:
             artifacts=art_meta, duration_seconds=time.time() - start,
         )
     except SmokeTestError as e:
-        record("failed", duration=time.time() - start, note=f"smoke: {e}".splitlines()[0][:120])
+        record("failed", duration=time.time() - start, note=_first_line(f"smoke: {e}"))
         print(f"SMOKE TEST FAILED: {e}", file=sys.stderr)
         return 2
     except Exception as e:  # noqa: BLE001 - record then re-raise as failure
-        record("failed", duration=time.time() - start, note=str(e).splitlines()[0][:120])
+        record("failed", duration=time.time() - start, note=_first_line(str(e)))
         print(f"BUILD FAILED: {e}", file=sys.stderr)
         return 1
 
@@ -179,8 +194,9 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("--recipe", required=True, choices=None,
                         help="recipe name (see `list`)")
         sp.add_argument("--channel", default=RELEASE, choices=recipe.CHANNELS)
-        sp.add_argument("--os", default="linux",
-                        help="build platform label for asset names/tags, e.g. ubuntu-22.04")
+        sp.add_argument("--os", required=True,
+                        help="build platform label for asset names/tags, e.g. ubuntu-22.04 "
+                             "(required, so artifacts are never mislabeled)")
         if need_arch:
             sp.add_argument("--arch", default=None, choices=list(recipe.ARCHES),
                             help="target arch; auto-detected from uname if omitted")

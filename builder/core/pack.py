@@ -38,12 +38,16 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
-def write_sha256(path: Path) -> Path:
-    """Write ``<path>.sha256`` next to the artifact in ``sha256sum`` format."""
+def write_sha256(path: Path) -> str:
+    """Write ``<path>.sha256`` next to the artifact and return the digest.
+
+    Returns the hex digest so callers can reuse it (e.g. in the manifest)
+    without hashing the file a second time.
+    """
     digest = sha256_file(path)
     sidecar = path.with_name(path.name + ".sha256")
     sidecar.write_text(f"{digest}  {path.name}\n")
-    return sidecar
+    return digest
 
 
 def ldd_deps(binary: Path) -> List[str]:
