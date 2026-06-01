@@ -6,46 +6,16 @@ checksums -> manifest -> result JSON -> $GITHUB_OUTPUT, plus the failure paths.
 """
 import json
 import os
-import stat
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
 from builder import __main__ as cli
-from builder.core import pack, recipe
-from builder.core.recipe import Artifact, BuildContext, Recipe, register
-from builder.core.smoke import SmokeTestError, run_ok
+from builder.core.smoke import SmokeTestError
+from tests._fakes import FakeRecipe, ensure_registered
 
-
-class FakeRecipe(Recipe):
-    """Minimal recipe: writes one fake executable and packages it."""
-    name = "mock-tool"
-    build_flags = "mock-flags"
-
-    def latest_version(self, channel):
-        return "1.2.3"
-
-    def build(self, ctx: BuildContext) -> Path:
-        prefix = ctx.workdir / "install"
-        (prefix / "bin").mkdir(parents=True, exist_ok=True)
-        f = prefix / "bin" / "mocktool"
-        f.write_text("#!/bin/sh\necho 'mocktool 1.2.3'\n")
-        f.chmod(f.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
-        return prefix
-
-    def package(self, ctx, install_prefix, out_dir):
-        tb = out_dir / f"{self.asset_basename(ctx, '')}.tar.gz"
-        added = pack.make_tarball(tb, install_prefix, ["bin/mocktool"])
-        return [Artifact(path=tb, kind="mock-tool", contents=added)]
-
-    def smoke_test(self, ctx, install_prefix):
-        run_ok([str(install_prefix / "bin" / "mocktool"), "--version"])
-
-
-# Register once for the whole module (idempotent across re-imports).
-if "mock-tool" not in recipe._REGISTRY:
-    register(FakeRecipe())
+ensure_registered()
 
 
 class FlowTest(unittest.TestCase):

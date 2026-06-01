@@ -6,9 +6,12 @@ on:
   workflow_dispatch:
     inputs:
       tool:
-        description: recipe name (e.g. llvm, tree-sitter)
-        required: true
-        type: string
+        description: recipe to build
+        type: choice
+        # NOTE: keep in sync with builder/recipes/ (GitHub choice inputs must be
+        # static — they can't be populated from the recipe registry).
+        options: [llvm, tree-sitter]
+        default: llvm
       channel:
         description: channel
         type: choice
@@ -25,7 +28,7 @@ on:
         options: [amd64, arm64]
         default: amd64
       version:
-        description: override version (blank = resolve latest)
+        description: build a specific version instead of latest (blank = latest upstream)
         type: string
         default: ''
       publish:
