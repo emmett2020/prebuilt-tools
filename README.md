@@ -1,4 +1,4 @@
-# llvm-prebuilt-binary
+# prebuilt-tools
 
 Prebuilt binaries for slow-to-compile tools (LLVM/clangd, tree-sitter, …),
 rebuilt daily by GitHub Actions and published to GitHub Releases. Downstream
@@ -24,7 +24,7 @@ can construct URLs by string formatting — **no GitHub API calls needed**:
   never replaces the last good artifact)
 
 ```bash
-OWNER=emmett2020/llvm-prebuilt-binary
+OWNER=emmett2020/prebuilt-tools
 
 # Latest stable clangd for x86_64, built on the broad-compat ubuntu-22.04 baseline
 VER=19.1.0

@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 
 def _gh_json(url: str) -> dict:
     headers = {
-        "User-Agent": "llvm-prebuilt-binary-builder",
+        "User-Agent": "prebuilt-tools-builder",
         "Accept": "application/vnd.github+json",
     }
     # Authenticate when a token is available (CI) to dodge the 60 req/hr
