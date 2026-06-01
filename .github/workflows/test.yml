@@ -1,0 +1,19 @@
+name: Unit Tests
+
+# Fast, dependency-free gate (stdlib unittest). Runs on every push/PR before any
+# of the heavy build jobs are worth starting.
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  unittest:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0      # tests/test_versions.py exercises git tag logic
+      - name: Run tests
+        run: python3 -m unittest discover -s tests -v
