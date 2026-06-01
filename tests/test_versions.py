@@ -40,10 +40,10 @@ class VersionsTest(unittest.TestCase):
         _git(self.repo, "commit", "-qm", "init")
 
     def test_tag_exists_true_and_false(self):
-        _git(self.repo, "tag", "llvm-19.1.0-ubuntu-22.04-amd64")
+        _git(self.repo, "tag", "llvm-19.1.0-ubuntu-22.04-amd")
         with _chdir(self.repo):
-            self.assertTrue(versions.tag_exists("llvm-19.1.0-ubuntu-22.04-amd64"))
-            self.assertFalse(versions.tag_exists("llvm-99.9.9-ubuntu-22.04-amd64"))
+            self.assertTrue(versions.tag_exists("llvm-19.1.0-ubuntu-22.04-amd"))
+            self.assertFalse(versions.tag_exists("llvm-99.9.9-ubuntu-22.04-amd"))
 
     def test_default_branch_head_is_12_hex(self):
         sha = versions.default_branch_head(str(self.repo))

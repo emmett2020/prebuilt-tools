@@ -45,12 +45,12 @@ class PackTest(unittest.TestCase):
     def test_write_manifest_records_os_tag(self):
         out = self.root / "MANIFEST.json"
         pack.write_manifest(
-            out, tool="llvm", version="19.1.0", channel="release", arch="amd64",
+            out, tool="llvm", version="19.1.0", channel="release", arch="amd",
             os_tag="ubuntu-24.04", source_ref="19.1.0", build_flags="-O3",
             artifacts=[{"name": "a.tar.gz"}], duration_seconds=1.23)
         data = json.loads(out.read_text())
         self.assertEqual(data["os"], "ubuntu-24.04")
-        self.assertEqual(data["arch"], "amd64")
+        self.assertEqual(data["arch"], "amd")
         self.assertEqual(data["artifacts"][0]["name"], "a.tar.gz")
 
 

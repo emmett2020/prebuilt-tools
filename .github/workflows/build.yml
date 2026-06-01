@@ -56,14 +56,16 @@ jobs:
         # builds on different glibc baselines (22.04=2.35, 24.04=2.39) never
         # collide.
         include:
-          - { tool: tree-sitter, os: ubuntu-22.04, arch: amd64, runner: ubuntu-22.04 }
-          - { tool: tree-sitter, os: ubuntu-22.04, arch: arm64, runner: ubuntu-22.04-arm }
-          - { tool: tree-sitter, os: ubuntu-24.04, arch: amd64, runner: ubuntu-24.04 }
-          - { tool: tree-sitter, os: ubuntu-24.04, arch: arm64, runner: ubuntu-24.04-arm }
-          - { tool: llvm,        os: ubuntu-22.04, arch: amd64, runner: ubuntu-22.04 }
-          - { tool: llvm,        os: ubuntu-22.04, arch: arm64, runner: ubuntu-22.04-arm }
-          - { tool: llvm,        os: ubuntu-24.04, arch: amd64, runner: ubuntu-24.04 }
-          - { tool: llvm,        os: ubuntu-24.04, arch: arm64, runner: ubuntu-24.04-arm }
+          - { tool: tree-sitter, os: ubuntu-22.04, arch: amd, runner: ubuntu-22.04 }
+          - { tool: tree-sitter, os: ubuntu-22.04, arch: arm, runner: ubuntu-22.04-arm }
+          - { tool: tree-sitter, os: ubuntu-24.04, arch: amd, runner: ubuntu-24.04 }
+          - { tool: tree-sitter, os: ubuntu-24.04, arch: arm, runner: ubuntu-24.04-arm }
+          - { tool: llvm,        os: ubuntu-22.04, arch: amd, runner: ubuntu-22.04 }
+          - { tool: llvm,        os: ubuntu-22.04, arch: arm, runner: ubuntu-22.04-arm }
+          - { tool: llvm,        os: ubuntu-24.04, arch: amd, runner: ubuntu-24.04 }
+          - { tool: llvm,        os: ubuntu-24.04, arch: arm, runner: ubuntu-24.04-arm }
+    # Clean job name, e.g. "llvm-ubuntu-22.04-amd".
+    name: ${{ matrix.tool }}-${{ matrix.os }}-${{ matrix.arch }}
     runs-on: ${{ matrix.runner }}
     env:
       CHANNEL: ${{ needs.setup.outputs.channel }}
@@ -156,6 +158,9 @@ jobs:
     needs: build
     if: ${{ always() && github.event_name != 'pull_request' }}
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      issues: write          # maintain the tracking issue (no SMTP/secrets needed)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -163,21 +168,32 @@ jobs:
           path: all-results
           pattern: result-*
           merge-multiple: true
-      - name: Render summary & email body
+      - name: Render report
         id: render
         run: |
           python3 -m builder report --results-dir all-results \
-            --email-subject-file subject.txt --email-body-file body.txt || true
-          echo "subject=$(cat subject.txt)" >> "$GITHUB_OUTPUT"
-      - name: Send notification email
-        if: ${{ vars.NOTIFY_EMAIL != '' }}
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: ${{ secrets.SMTP_HOST }}
-          server_port: ${{ secrets.SMTP_PORT }}
-          username: ${{ secrets.SMTP_USERNAME }}
-          password: ${{ secrets.SMTP_PASSWORD }}
-          subject: ${{ steps.render.outputs.subject }}
-          to: ${{ vars.NOTIFY_EMAIL }}
-          from: Prebuilt Builder <${{ secrets.SMTP_USERNAME }}>
-          body: file://body.txt
+            --issue-body-file body.md || true   # don't let red status skip publish
+      - name: Publish to tracking issue
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: "[prebuilt] latest build status"
+          LABEL: daily-build
+        run: |
+          set -euo pipefail
+          gh label create "$LABEL" --color BFD4F2 \
+            --description "Daily prebuilt build status" 2>/dev/null || true
+          # Reuse the single open tracking issue; create it the first time.
+          num=$(gh issue list --state open --label "$LABEL" --limit 1 --json number \
+                  --jq '.[0].number // empty')
+          if [ -z "$num" ]; then
+            url=$(gh issue create --title "$TITLE" --label "$LABEL" --body-file body.md)
+            echo "created tracking issue: $url"
+          else
+            gh issue edit "$num" --body-file body.md      # refresh body (silent)
+            # A comment is what actually emails watchers — only when noteworthy.
+            if [ "${{ steps.render.outputs.notify }}" = "true" ]; then
+              gh issue comment "$num" --body-file body.md
+            fi
+            echo "updated tracking issue #$num (notify=${{ steps.render.outputs.notify }})"
+          fi

@@ -17,7 +17,7 @@ can construct URLs by string formatting — **no GitHub API calls needed**:
 ```
 
 - `os` ∈ `ubuntu-22.04` (glibc 2.35), `ubuntu-24.04` (glibc 2.39)
-- `arch` ∈ `amd64`, `arm64`
+- `arch` ∈ `amd`, `arm`
 - **release** channel: `version` is the upstream version, tag is permanent
 - **nightly** channel: `version` is the literal `nightly`, the tag rolls
   (overwritten only after a successful build + smoke test, so a failed build
@@ -26,19 +26,20 @@ can construct URLs by string formatting — **no GitHub API calls needed**:
 ```bash
 OWNER=emmett2020/prebuilt-tools
 
-# Latest stable clangd for x86_64, built on the broad-compat ubuntu-22.04 baseline
+# Latest stable clang tools (clangd/clang-format/...) for x86_64, on the
+# broad-compat ubuntu-22.04 baseline
 VER=19.1.0
-A=llvm-clangd-$VER-ubuntu-22.04-amd64
-curl -fsSL -o clangd.tar.gz \
+A=llvm-clang-tools-$VER-ubuntu-22.04-amd
+curl -fsSL -o clang-tools.tar.gz \
   "https://github.com/$OWNER/releases/download/$A/$A.tar.gz"
 
 # Verify checksum (each asset ships a .sha256 sidecar)
-curl -fsSL -o clangd.tar.gz.sha256 \
+curl -fsSL -o clang-tools.tar.gz.sha256 \
   "https://github.com/$OWNER/releases/download/$A/$A.tar.gz.sha256"
-sha256sum -c clangd.tar.gz.sha256
+sha256sum -c clang-tools.tar.gz.sha256
 
-# Rolling nightly tree-sitter on arm64 (URL never changes)
-N=tree-sitter-nightly-ubuntu-22.04-arm64
+# Rolling nightly tree-sitter on arm (URL never changes)
+N=tree-sitter-nightly-ubuntu-22.04-arm
 curl -fsSL "https://github.com/$OWNER/releases/download/$N/$N.tar.gz" | tar xz
 ```
 
@@ -54,7 +55,7 @@ build flags, per-artifact sha256, and build duration for provenance.
 
 Binaries built on a given OS require that OS's glibc **or newer**. C++ tools
 also link libstdc++ statically to reduce runtime dependencies. Built for Linux
-`amd64` / `arm64` only (no macOS/Windows yet).
+`amd` / `arm` only (no macOS/Windows yet).
 
 ### Available tools / artifact kinds
 
@@ -86,8 +87,8 @@ builder/
 
 ```bash
 python -m builder list
-python -m builder check  --recipe tree-sitter --channel release --os ubuntu-22.04 --arch amd64
-python -m builder build  --recipe tree-sitter --channel nightly --os ubuntu-22.04 --arch amd64 \
+python -m builder check  --recipe tree-sitter --channel release --os ubuntu-22.04 --arch amd
+python -m builder build  --recipe tree-sitter --channel nightly --os ubuntu-22.04 --arch amd \
                          --workdir work --out dist --results-dir results
 python -m builder report --results-dir results
 ```
@@ -112,15 +113,16 @@ Create `builder/recipes/<tool>.py` implementing `Recipe`
 `register(<Recipe>())` at module import. Add a matrix entry in
 `.github/workflows/build.yml`. Validate with `manual_build.yml` before merging.
 
-## Repository configuration
+## Notifications
 
-Daily email notifications are sent only if these are set:
+**No secrets to configure.** The daily build maintains a single tracking issue
+titled `[prebuilt] latest build status` (label `daily-build`) using the built-in
+`GITHUB_TOKEN`:
 
-| Kind | Name | Purpose |
-|------|------|---------|
-| Variable | `NOTIFY_EMAIL` | recipient address (configurable; not hard-coded) |
-| Secret | `SMTP_HOST` / `SMTP_PORT` | SMTP server |
-| Secret | `SMTP_USERNAME` / `SMTP_PASSWORD` | SMTP credentials |
+- the issue **body** is refreshed every run with the latest status table;
+- a **comment** is added (which is what emails watchers) only when something
+  actually built or failed — days where every job is skipped stay silent.
 
-If `NOTIFY_EMAIL` is unset, the build report is still written to the Actions
-job summary, and GitHub's native scheduled-failure email serves as a fallback.
+To receive emails, just **watch the repository** (Watch → All Activity, or Custom
+→ Issues). GitHub's native scheduled-failure email is an additional fallback, and
+the full status table is always in the Actions job summary.

@@ -37,7 +37,7 @@ def _fake_install(tmp: Path, *, clangd_says="clangd version 19.1.0", lld_ok=True
 
 
 def _ctx(tmp: Path):
-    return BuildContext(version="19.1.0", channel=RELEASE, arch="amd64",
+    return BuildContext(version="19.1.0", channel=RELEASE, arch="amd",
                         workdir=tmp, ccache_dir=tmp / "cc", os_tag="ubuntu-22.04")
 
 
@@ -73,8 +73,8 @@ class LLVMPackageTest(unittest.TestCase):
 
     def test_tarballs_named_by_kind(self):
         names = {a.path.name for a in self.arts}
-        self.assertIn("llvm-clang-tools-19.1.0-ubuntu-22.04-amd64.tar.gz", names)
-        self.assertIn("llvm-compiler-19.1.0-ubuntu-22.04-amd64.tar.gz", names)
+        self.assertIn("llvm-clang-tools-19.1.0-ubuntu-22.04-amd.tar.gz", names)
+        self.assertIn("llvm-compiler-19.1.0-ubuntu-22.04-amd.tar.gz", names)
 
 
 class LLVMSmokeTest(unittest.TestCase):

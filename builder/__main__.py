@@ -8,7 +8,8 @@ Subcommands:
            arch/channel. The smoke test is the publish gate: a failure exits
            non-zero so the workflow never publishes. Also writes a result JSON.
   report   Aggregate result JSONs into a Markdown summary ($GITHUB_STEP_SUMMARY)
-           and an email subject/body for the daily notification.
+           and the tracking-issue body; emits notify=true|false to decide
+           whether the workflow should comment (which notifies watchers).
   list     List available recipes.
 """
 from __future__ import annotations
@@ -41,12 +42,20 @@ def _first_line(text: str, limit: int = 120) -> str:
     return (text.splitlines() or [""])[0][:limit]
 
 
+# Map the various spellings `uname -m` / platform.machine() may report onto our
+# short canonical arch names.
+_MACHINE_TO_ARCH = {
+    "x86_64": "amd", "amd64": "amd",
+    "aarch64": "arm", "arm64": "arm",
+}
+
+
 def _detect_arch() -> str:
     machine = platform.machine().lower()
-    for name, uname in recipe.ARCHES.items():
-        if machine == uname or machine == name:
-            return name
-    raise SystemExit(f"unsupported architecture: {machine}")
+    try:
+        return _MACHINE_TO_ARCH[machine]
+    except KeyError:
+        raise SystemExit(f"unsupported architecture: {machine}")
 
 
 def _release_tag(r: recipe.Recipe, version: str, channel: str, arch: str, os_tag: str) -> str:
@@ -177,12 +186,17 @@ def cmd_report(args: argparse.Namespace) -> int:
     else:
         print(md)
 
-    if args.email_subject_file:
-        Path(args.email_subject_file).write_text(report.email_subject(results) + "\n")
-    if args.email_body_file:
-        Path(args.email_body_file).write_text(report.render_text(results))
+    if args.issue_body_file:
+        Path(args.issue_body_file).write_text(report.render_issue_body(results))
 
-    # Non-zero if anything failed, so the summary job can surface it.
+    # notify=true tells the workflow to add an Issue comment (which emails
+    # watchers) — only when something actually built or failed, never on a
+    # day where every job was skipped.
+    _gh_output(notify=str(report.should_notify(results)).lower())
+
+    # Non-zero if anything failed, so the report job itself goes red. The
+    # body/notify outputs above are emitted first so the publish step (run with
+    # if: always()) still updates the issue.
     return 1 if report.any_failed(results) else 0
 
 
@@ -215,8 +229,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     sp = sub.add_parser("report")
     sp.add_argument("--results-dir", required=True)
-    sp.add_argument("--email-subject-file", default=None)
-    sp.add_argument("--email-body-file", default=None)
+    sp.add_argument("--issue-body-file", default=None,
+                    help="write the tracking-issue body (markdown) here")
     sp.set_defaults(func=cmd_report)
 
     return p
