@@ -60,7 +60,7 @@ also link libstdc++ statically to reduce runtime dependencies. Built for Linux
 
 | Tool | Kinds (split tarballs) |
 |------|------------------------|
-| `llvm` | `clangd`, `clang-tools` (clang-format/clang-tidy), `full-toolchain` |
+| `llvm` | `clang-tools` (clangd, clang-format, clang-tidy, clang-apply-replacements) · `compiler` (clang, clang++, lld) |
 | `tree-sitter` | static `libtree-sitter.a` + headers |
 
 ## How it works

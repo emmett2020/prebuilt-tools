@@ -1,9 +1,11 @@
-"""LLVM recipe — builds clangd / clang-tools / a trimmed toolchain.
+"""LLVM recipe — builds the clang dev tools and a compiler/linker package.
 
 Migrated from the original ``build_clangd.sh`` and extended:
   * static libstdc++ link to minimize runtime deps (glibc baseline = ubuntu-22.04),
   * ccache for cross-run incremental builds (the real lever against the 6h limit),
-  * one build → multiple split tarballs (clangd / clang-tools / full-toolchain).
+  * one build → two split tarballs: ``clang-tools`` (clangd + clang-format /
+    clang-tidy / clang-apply-replacements) and ``compiler`` (clang / clang++ /
+    lld — no overlap with clang-tools).
 """
 from __future__ import annotations
 
@@ -78,11 +80,15 @@ class LLVMRecipe(Recipe):
             if (install_prefix / "lib" / "clang").exists() else []
 
         specs = {
-            "clangd": bins("clangd") + clang_lib,
-            "clang-tools": bins("clang-format", "clang-tidy", "clang-apply-replacements"),
-            "full-toolchain": bins(
-                "clang", f"clang-{major}" if major else "clang", "clang++",
-                "clangd", "clang-format", "clang-tidy", "lld", "ld.lld",
+            # clangd + the standalone source tools, all in one package.
+            "clang-tools": bins(
+                "clangd", "clang-format", "clang-tidy", "clang-apply-replacements",
+            ) + clang_lib,
+            # Compiler + linker only — no clangd / clang-format / clang-tidy /
+            # clang-apply-replacements (those live in clang-tools above).
+            "compiler": bins(
+                "clang", "clang++", "lld", "ld.lld",
+                *([f"clang-{major}"] if major else []),
             ) + clang_lib,
         }
 
@@ -97,9 +103,34 @@ class LLVMRecipe(Recipe):
         return artifacts
 
     def smoke_test(self, ctx: BuildContext, install_prefix: Path) -> None:
+        from builder.core.smoke import SmokeTestError
+
+        # clangd is the keystone artifact — require it and check it identifies
+        # itself, as a strong anchor.
         clangd = install_prefix / "bin" / "clangd"
         must_exist(clangd)
         run_ok([str(clangd), "--version"], expect_substr="clangd")
+
+        # --version every packaged binary. Note: bare `lld` is a multi-call
+        # driver that errors on `--version` without a flavor, so the linker is
+        # validated via its `ld.lld` alias (same binary) instead.
+        major = ctx.version.split(".")[0] if ctx.channel == RELEASE else ""
+        candidates = [
+            "clang", "clang++", "clang-format", "clang-tidy",
+            "clang-apply-replacements", "ld.lld",
+        ]
+        if major:
+            candidates.append(f"clang-{major}")
+
+        checked = ["clangd"]
+        for name in candidates:
+            binary = install_prefix / "bin" / name
+            if binary.exists():
+                run_ok([str(binary), "--version"])
+                checked.append(name)
+
+        if len(checked) < 2:
+            raise SmokeTestError(f"only clangd was found to smoke-test: {checked}")
 
 
 register(LLVMRecipe())
