@@ -7,8 +7,6 @@ on:
   schedule:
     - cron: '0 1 * * *'    # 01:00 UTC -> release channel
     - cron: '0 13 * * *'   # 13:00 UTC -> nightly channel
-  pull_request:
-    branches: [master]
   workflow_dispatch:
     inputs:
       channel:
@@ -28,23 +26,16 @@ jobs:
     runs-on: ubuntu-22.04
     outputs:
       channel: ${{ steps.ctx.outputs.channel }}
-      dry_run: ${{ steps.ctx.outputs.dry_run }}
     steps:
       - id: ctx
         run: |
           set -euo pipefail
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "channel=release" >> "$GITHUB_OUTPUT"
-            echo "dry_run=true"   >> "$GITHUB_OUTPUT"
-          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo "channel=${{ inputs.channel }}" >> "$GITHUB_OUTPUT"
-            echo "dry_run=false" >> "$GITHUB_OUTPUT"
           elif [[ "${{ github.event.schedule }}" == "0 13 * * *" ]]; then
             echo "channel=nightly" >> "$GITHUB_OUTPUT"
-            echo "dry_run=false" >> "$GITHUB_OUTPUT"
           else
             echo "channel=release" >> "$GITHUB_OUTPUT"
-            echo "dry_run=false" >> "$GITHUB_OUTPUT"
           fi
 
   build:
@@ -69,9 +60,6 @@ jobs:
     runs-on: ${{ matrix.runner }}
     env:
       CHANNEL: ${{ needs.setup.outputs.channel }}
-      DRY_RUN: ${{ needs.setup.outputs.dry_run }}
-      # On PRs, skip the multi-hour llvm build; only validate the fast pipeline.
-      SKIP: ${{ needs.setup.outputs.dry_run == 'true' && matrix.tool == 'llvm' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -81,7 +69,6 @@ jobs:
       # actions/setup-python because its arm64 prebuild requires GLIBC_2.38,
       # which would not load on our glibc-2.35 (ubuntu-22.04) baseline.
       - name: Install build dependencies
-        if: ${{ env.SKIP != 'true' }}
         run: |
           set -euo pipefail
           sudo apt-get update
@@ -90,7 +77,6 @@ jobs:
 
       - name: Resolve version & idempotency
         id: check
-        if: ${{ env.SKIP != 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -98,7 +84,7 @@ jobs:
             --channel "$CHANNEL" --os ${{ matrix.os }} --arch ${{ matrix.arch }}
 
       - name: Restore ccache
-        if: ${{ env.SKIP != 'true' && steps.check.outputs.needs_build == 'true' }}
+        if: ${{ steps.check.outputs.needs_build == 'true' }}
         uses: actions/cache@v4
         with:
           path: .ccache
@@ -109,7 +95,7 @@ jobs:
             ccache-${{ matrix.tool }}-${{ matrix.os }}-${{ matrix.arch }}-${{ env.CHANNEL }}-
 
       - name: Build, package & smoke-test
-        if: ${{ env.SKIP != 'true' && steps.check.outputs.needs_build == 'true' }}
+        if: ${{ steps.check.outputs.needs_build == 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -119,7 +105,7 @@ jobs:
             --workdir work --out dist --ccache-dir .ccache --results-dir results
 
       - name: Record skipped result
-        if: ${{ env.SKIP != 'true' && steps.check.outputs.needs_build == 'false' }}
+        if: ${{ steps.check.outputs.needs_build == 'false' }}
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -132,7 +118,7 @@ jobs:
           PY
 
       - name: Upload result JSON
-        if: ${{ always() && env.SKIP != 'true' }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: result-${{ matrix.tool }}-${{ matrix.os }}-${{ matrix.arch }}
@@ -140,9 +126,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Publish to GitHub Release
-        if: >-
-          ${{ env.SKIP != 'true' && env.DRY_RUN != 'true'
-              && steps.check.outputs.needs_build == 'true' }}
+        if: ${{ steps.check.outputs.needs_build == 'true' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.check.outputs.tag }}
@@ -156,7 +140,7 @@ jobs:
 
   report:
     needs: build
-    if: ${{ always() && github.event_name != 'pull_request' }}
+    if: ${{ always() }}
     runs-on: ubuntu-22.04
     permissions:
       contents: read
