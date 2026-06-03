@@ -55,6 +55,10 @@ jobs:
           - { tool: llvm,        os: ubuntu-22.04, arch: arm, runner: ubuntu-22.04-arm }
           - { tool: llvm,        os: ubuntu-24.04, arch: amd, runner: ubuntu-24.04 }
           - { tool: llvm,        os: ubuntu-24.04, arch: arm, runner: ubuntu-24.04-arm }
+          - { tool: gcc,         os: ubuntu-22.04, arch: amd, runner: ubuntu-22.04 }
+          - { tool: gcc,         os: ubuntu-22.04, arch: arm, runner: ubuntu-22.04-arm }
+          - { tool: gcc,         os: ubuntu-24.04, arch: amd, runner: ubuntu-24.04 }
+          - { tool: gcc,         os: ubuntu-24.04, arch: arm, runner: ubuntu-24.04-arm }
     # Clean job name, e.g. "llvm-ubuntu-22.04-amd".
     name: ${{ matrix.tool }}-${{ matrix.os }}-${{ matrix.arch }}
     runs-on: ${{ matrix.runner }}
@@ -73,7 +77,8 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential cmake ninja-build ccache git python3
+            build-essential cmake ninja-build ccache git python3 \
+            flex bison texinfo xz-utils bzip2 wget ca-certificates zlib1g-dev
 
       - name: Resolve version & idempotency
         id: check

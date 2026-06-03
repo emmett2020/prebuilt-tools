@@ -10,6 +10,7 @@ import tempfile
 import unittest
 from contextlib import contextmanager
 from pathlib import Path
+from unittest import mock
 
 from builder.core import versions
 
@@ -52,6 +53,20 @@ class VersionsTest(unittest.TestCase):
     def test_nightly_stamp_shape(self):
         stamp = versions.nightly_stamp(str(self.repo))
         self.assertRegex(stamp, r"^nightly-\d{8}-[0-9a-f]{12}$")
+
+    def test_latest_version_from_index_picks_highest_dotted_version(self):
+        html = """
+        <a href="gcc-15.2.0/">gcc-15.2.0/</a>
+        <a href="gcc-16.1.0/">gcc-16.1.0/</a>
+        <a href="gcc-14.3.0/">gcc-14.3.0/</a>
+        """
+        with mock.patch("builder.core.versions._url_text", return_value=html):
+            self.assertEqual(
+                versions.latest_version_from_index(
+                    "https://example.invalid/", r"gcc-(\d+\.\d+\.\d+)/"
+                ),
+                "16.1.0",
+            )
 
 
 if __name__ == "__main__":

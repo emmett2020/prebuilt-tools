@@ -7,6 +7,7 @@ table for ``$GITHUB_STEP_SUMMARY`` and a plain-text body for the daily email.
 from __future__ import annotations
 
 import json
+from collections import defaultdict
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import List
@@ -52,6 +53,27 @@ def _human_size(n: int) -> str:
     return f"{size:.1f}GB"
 
 
+def _human_duration(seconds: float) -> str:
+    if seconds <= 0:
+        return "-"
+    total = int(round(seconds))
+    if total < 60:
+        return f"{total}s"
+    minutes, secs = divmod(total, 60)
+    if minutes < 60:
+        return f"{minutes}m {secs}s" if secs else f"{minutes}m"
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours}h {minutes}m" if minutes else f"{hours}h"
+
+
+def _project_compile_times(results: List[Result]) -> dict[str, float]:
+    totals: dict[str, float] = defaultdict(float)
+    for r in results:
+        if r.status in ("built", "failed") and r.duration_seconds > 0:
+            totals[r.tool] += r.duration_seconds
+    return dict(sorted(totals.items()))
+
+
 _ICON = {"built": "✅", "skipped": "⏭️", "failed": "❌"}
 
 
@@ -59,11 +81,27 @@ def render_markdown(results: List[Result]) -> str:
     lines = [
         "# Build Report",
         "",
+        "## Project Compile Time",
+        "",
+        "| Tool | Actual Compile Time |",
+        "|------|---------------------|",
+    ]
+    totals = _project_compile_times(results)
+    if totals:
+        for tool, seconds in totals.items():
+            lines.append(f"| {tool} | {_human_duration(seconds)} |")
+    else:
+        lines.append("| - | - |")
+
+    lines.extend([
+        "",
+        "## Matrix Results",
+        "",
         "| Tool | Channel | OS | Arch | Status | Version | Time | Size | Note |",
         "|------|---------|----|------|--------|---------|------|------|------|",
-    ]
+    ])
     for r in results:
-        dur = f"{r.duration_seconds/60:.0f}m" if r.duration_seconds else "-"
+        dur = _human_duration(r.duration_seconds)
         size = _human_size(r.size_bytes) if r.size_bytes else "-"
         lines.append(
             f"| {r.tool} | {r.channel} | {r.os} | {r.arch} | {_ICON.get(r.status, r.status)} "

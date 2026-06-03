@@ -25,6 +25,7 @@ class _Dummy(Recipe):
 class RegistryTest(unittest.TestCase):
     def test_available_includes_real_recipes(self):
         names = recipe.available()
+        self.assertIn("gcc", names)
         self.assertIn("llvm", names)
         self.assertIn("tree-sitter", names)
 

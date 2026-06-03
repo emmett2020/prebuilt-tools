@@ -60,6 +60,23 @@ class ReportTest(unittest.TestCase):
         self.assertIn("| OS |", md)
         self.assertIn("ubuntu-22.04", md)
 
+    def test_markdown_has_project_compile_time_summary(self):
+        rs = [
+            Result("gcc", "release", "amd", "built", duration_seconds=65),
+            Result("gcc", "release", "arm", "failed", duration_seconds=3600),
+            Result("llvm", "release", "amd", "skipped", duration_seconds=99),
+        ]
+        md = report.render_markdown(rs)
+        self.assertIn("## Project Compile Time", md)
+        self.assertIn("| gcc | 1h 1m |", md)
+        self.assertNotIn("| llvm | 1m 39s |", md)
+
+    def test_matrix_time_uses_actual_seconds(self):
+        md = report.render_markdown([
+            Result("tree-sitter", "nightly", "amd", "built", duration_seconds=12),
+        ])
+        self.assertIn("| tree-sitter | nightly | linux | amd | ✅ built | - | 12s |", md)
+
     def test_corrupt_result_file_is_skipped(self):
         (self.dir / "bad.json").write_text("{ not json")
         report.write_result(self.dir, Result("t", "release", "amd", "built"))

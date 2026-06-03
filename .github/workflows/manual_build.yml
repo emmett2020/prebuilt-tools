@@ -10,7 +10,7 @@ on:
         type: choice
         # NOTE: keep in sync with builder/recipes/ (GitHub choice inputs must be
         # static — they can't be populated from the recipe registry).
-        options: [llvm, tree-sitter]
+        options: [llvm, tree-sitter, gcc]
         default: llvm
       channel:
         description: channel
@@ -54,7 +54,8 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential cmake ninja-build ccache git python3
+            build-essential cmake ninja-build ccache git python3 \
+            flex bison texinfo xz-utils bzip2 wget ca-certificates zlib1g-dev
       - name: Restore ccache
         uses: actions/cache@v4
         with:

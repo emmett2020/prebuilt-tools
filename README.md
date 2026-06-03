@@ -62,7 +62,12 @@ also link libstdc++ statically to reduce runtime dependencies. Built for Linux
 | Tool | Kinds (split tarballs) |
 |------|------------------------|
 | `llvm` | `clang-tools` (clangd, clang-format, clang-tidy, clang-apply-replacements) · `compiler` (clang, clang++, lld) |
+| `gcc` | native C/C++ compiler (`gcc`, `g++`, libgcc/libstdc++ runtime and headers) |
 | `tree-sitter` | the `tree-sitter` CLI binary |
+
+The `gcc` package is a native Linux compiler for the build OS/arch. It does not
+bundle binutils, glibc headers, or a sysroot; downstream systems still need
+their normal assembler/linker and libc development headers.
 
 ## How it works
 
@@ -70,7 +75,7 @@ also link libstdc++ statically to reduce runtime dependencies. Built for Linux
 builder/
   __main__.py        # CLI: list / check / build / report
   core/              # recipe base+registry, version discovery, packaging, smoke, reporting
-  recipes/           # one module per tool (llvm.py, tree_sitter.py)
+  recipes/           # one module per tool (llvm.py, gcc.py, tree_sitter.py)
 .github/workflows/
   build.yml          # daily (staggered: release 01:00 UTC, nightly 13:00 UTC) + PR dry-run
   manual_build.yml   # workflow_dispatch: build one tool/arch, optionally publish

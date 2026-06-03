@@ -13,10 +13,16 @@ class SmokeTestError(RuntimeError):
     pass
 
 
-def run_ok(cmd: list[str], *, expect_substr: str | None = None) -> str:
+def run_ok(
+    cmd: list[str],
+    *,
+    expect_substr: str | None = None,
+    cwd: Path | None = None,
+    env: dict[str, str] | None = None,
+) -> str:
     """Run ``cmd``; raise SmokeTestError unless it exits 0 (and optionally
     contains ``expect_substr`` in its combined output)."""
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    proc = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd, env=env)
     output = (proc.stdout or "") + (proc.stderr or "")
     if proc.returncode != 0:
         raise SmokeTestError(
